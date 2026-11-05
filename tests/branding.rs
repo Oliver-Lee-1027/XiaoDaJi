@@ -49,3 +49,22 @@ fn chinese_branding_does_not_change_legacy_install_or_data_identity() {
     assert!(include_str!("../src/model.rs").contains("join(\"Daozai\")"));
     assert!(include_str!("../src/mail.rs").contains("\"Daozai.Mail\""));
 }
+
+#[test]
+fn package_lock_and_windows_resources_match_the_compiled_version() {
+    let version = env!("CARGO_PKG_VERSION");
+    let version_line = format!("version = \"{version}\"");
+    assert!(include_str!("../Cargo.toml").lines().any(|line| line == version_line));
+    let lock = include_str!("../Cargo.lock");
+    let package = lock.split("[[package]]").find(|block| block.lines().any(|line| line == "name = \"daozai\"" )).unwrap();
+    assert!(package.lines().any(|line| line == version_line));
+    let numeric = format!("{},0", version.replace('.', ","));
+    let resources = include_str!("../app.rc");
+    assert!(resources.contains(&format!("FILEVERSION {numeric}")));
+    assert!(resources.contains(&format!("PRODUCTVERSION {numeric}")));
+    assert!(resources.contains(&format!("VALUE \"ProductVersion\", \"{version}\"")));
+    assert!(resources.contains(&format!("VALUE \"FileVersion\", \"{version}\"")));
+    let readme = include_str!("../README.md");
+    assert!(readme.contains(&format!("小妲己-安装包-v{version}-x64.exe")));
+    assert!(readme.contains(&format!("小妲己-v{version}-windows-x64.zip")));
+}

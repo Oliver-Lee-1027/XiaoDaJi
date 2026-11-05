@@ -26,6 +26,8 @@
 
 ## 打包与更新
 
+小妲己首个独立版本为 `v0.0.1`，已统一 Cargo、Windows 资源与发布包版本。原上游版本记录仅保留作历史参考。当前仓库为 `Oliver-Lee-1027/XiaoDaJi`，本地远程已更新；在线更新仍需显式构建配置，不会因关联 Git 仓库而自动启用。
+
 运行 `scripts/package.ps1` 生成：
 
 - `小妲己-安装包-v版本号-x64.exe`
@@ -43,6 +45,6 @@ cargo build --locked --release --bin daozai
 
 ## 重新上传源码
 
-本轮按用户要求移除根 `.git`，不执行 `git init`、`git commit` 或 `git push`。之后请手动在新目录初始化仓库并关联新地址。保留 `.gitignore`、CI 配置和许可证；`target/`、`dist/` 不属于源码提交内容，网页上传/网盘上传时也应主动排除。
+更名交付时曾按用户要求移除旧 `.git`；之后已在新目录初始化并关联 `https://github.com/Oliver-Lee-1027/XiaoDaJi.git`，首批源码由用户手动推送。本轮版本调整不代为执行 `git commit` 或 `git push`。保留 `.gitignore`、CI 配置和许可证；`target/`、`dist/` 不属于源码提交内容，网页上传/网盘上传时也应主动排除。
 
 原项目地址仅用于开源致谢，不是当前项目远程或更新源。保留 `LICENSE`、`THIRD_PARTY_NOTICES.txt` 和历史 `CHANGELOG.md`。图标来源为用户提供，未进行商标权属或注册可用性审核。
