@@ -19,6 +19,8 @@ Unicode true
     !define LEGACY_APP_NAME ""
   !endif
 !endif
+!define APP_EXE "小妲己.exe"
+!define UNINSTALL_EXE "卸载小妲己.exe"
 !define UNINSTALL_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_ID}"
 Name "${APP_NAME}"
 OutFile "${OUTPUT_FILE}"
@@ -45,7 +47,7 @@ Page custom InstallPage InstallPageLeave
 !insertmacro MUI_PAGE_INSTFILES
 !define MUI_FINISHPAGE_TITLE "小妲己已安装"
 !define MUI_FINISHPAGE_TEXT "音乐、提醒和日常小事，现在都在桌面上的小岛里。"
-!define MUI_FINISHPAGE_RUN "$INSTDIR\daozai.exe"
+!define MUI_FINISHPAGE_RUN "$INSTDIR\${APP_EXE}"
 !define MUI_FINISHPAGE_RUN_TEXT "打开小妲己"
 !insertmacro MUI_PAGE_FINISH
 !define MUI_UNCONFIRMPAGE_TEXT_TOP "将卸载小妲己。设置、待办和连接记录会保留，重新安装后仍可使用。"
@@ -218,33 +220,41 @@ Section "安装"
   Call ValidateDirectory
   SetOutPath "$INSTDIR"
   SetOverwrite on
-  File /oname=daozai.exe "${SOURCE_EXE}"
+  File "/oname=${APP_EXE}" "${SOURCE_EXE}"
   File "${PROJECT_DIR}\LICENSE"
   File "${PROJECT_DIR}\THIRD_PARTY_NOTICES.txt"
-  WriteUninstaller "$INSTDIR\Uninstall.exe"
+  ClearErrors
+  WriteUninstaller "$INSTDIR\${UNINSTALL_EXE}"
+  IfErrors 0 +3
+    MessageBox MB_OK|MB_ICONSTOP "卸载程序写入失败，请检查安装目录权限后重试。" /SD IDOK
+    Abort
+  ; New program and uninstaller are in place before removing the old filenames.
+  Delete "$INSTDIR\daozai.exe"
+  Delete "$INSTDIR\Uninstall.exe"
   !insertmacro RemoveLegacyShortcuts
   ${If} $DesktopChoice == 1
-    CreateShortcut "$DESKTOP\${APP_NAME}.lnk" "$INSTDIR\daozai.exe"
+    CreateShortcut "$DESKTOP\${APP_NAME}.lnk" "$INSTDIR\${APP_EXE}" "" "$INSTDIR\${APP_EXE}" 0
   ${Else}
     Delete "$DESKTOP\${APP_NAME}.lnk"
   ${EndIf}
   ${If} $AutoStartChoice == 1
-    WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "${APP_ID}" '"$INSTDIR\daozai.exe"'
+    WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "${APP_ID}" '"$INSTDIR\${APP_EXE}"'
   ${Else}
     DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "${APP_ID}"
   ${EndIf}
-  CreateShortcut "$SMPROGRAMS\${APP_NAME}.lnk" "$INSTDIR\daozai.exe"
-  CreateShortcut "$SMPROGRAMS\${APP_NAME}设置.lnk" "$INSTDIR\daozai.exe" "--settings"
+  CreateShortcut "$SMPROGRAMS\${APP_NAME}.lnk" "$INSTDIR\${APP_EXE}" "" "$INSTDIR\${APP_EXE}" 0
+  CreateShortcut "$SMPROGRAMS\${APP_NAME}设置.lnk" "$INSTDIR\${APP_EXE}" "--settings" "$INSTDIR\${APP_EXE}" 0
   WriteRegStr HKCU "${UNINSTALL_KEY}" "DisplayName" "${APP_NAME}"
   WriteRegStr HKCU "${UNINSTALL_KEY}" "DisplayVersion" "${APP_VERSION}"
   WriteRegStr HKCU "${UNINSTALL_KEY}" "Publisher" "小妲己"
   WriteRegStr HKCU "${UNINSTALL_KEY}" "InstallLocation" "$INSTDIR"
-  WriteRegStr HKCU "${UNINSTALL_KEY}" "DisplayIcon" "$INSTDIR\daozai.exe,0"
-  WriteRegStr HKCU "${UNINSTALL_KEY}" "UninstallString" '"$INSTDIR\Uninstall.exe"'
-  WriteRegStr HKCU "${UNINSTALL_KEY}" "QuietUninstallString" '"$INSTDIR\Uninstall.exe" /S'
+  WriteRegStr HKCU "${UNINSTALL_KEY}" "DisplayIcon" "$INSTDIR\${APP_EXE},0"
+  WriteRegStr HKCU "${UNINSTALL_KEY}" "UninstallString" '"$INSTDIR\${UNINSTALL_EXE}"'
+  WriteRegStr HKCU "${UNINSTALL_KEY}" "QuietUninstallString" '"$INSTDIR\${UNINSTALL_EXE}" /S'
   WriteRegDWORD HKCU "${UNINSTALL_KEY}" "NoModify" 1
   WriteRegDWORD HKCU "${UNINSTALL_KEY}" "NoRepair" 1
   Delete "$INSTDIR\uninstall.ps1"
+  System::Call 'shell32::SHChangeNotify(i 0x08000000, i 0, p 0, p 0)'
 SectionEnd
 
 Function un.onInit
@@ -254,18 +264,21 @@ FunctionEnd
 
 Section "Uninstall"
   Call un.CheckClosed
+  Delete "$INSTDIR\${APP_EXE}"
   Delete "$INSTDIR\daozai.exe"
+  Delete "$INSTDIR\Uninstall.exe"
   Delete "$INSTDIR\daozai-previous.exe"
   Delete "$INSTDIR\daozai-v0.2-backup.exe"
   Delete "$INSTDIR\LICENSE"
   Delete "$INSTDIR\THIRD_PARTY_NOTICES.txt"
   Delete "$INSTDIR\uninstall.ps1"
-  Delete "$INSTDIR\Uninstall.exe"
+  Delete "$INSTDIR\${UNINSTALL_EXE}"
   Delete "$DESKTOP\${APP_NAME}.lnk"
   Delete "$SMPROGRAMS\${APP_NAME}.lnk"
   Delete "$SMPROGRAMS\${APP_NAME}设置.lnk"
   ReadRegStr $0 HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "${APP_ID}"
-  ${If} $0 == '"$INSTDIR\daozai.exe"'
+  ${If} $0 == '"$INSTDIR\${APP_EXE}"'
+  ${OrIf} $0 == '"$INSTDIR\daozai.exe"'
     DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "${APP_ID}"
   ${EndIf}
   DeleteRegKey HKCU "${UNINSTALL_KEY}"

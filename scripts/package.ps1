@@ -16,6 +16,7 @@ try {
     $binary = Get-Item -LiteralPath $Executable
     & (Join-Path $PSScriptRoot 'check-runtime.ps1') -Executable $binary.FullName
     if ($binary.VersionInfo.FileVersion -ne $version -and $binary.VersionInfo.FileVersion -ne "$version.0") { throw 'Executable version mismatch' }
+    & (Join-Path $PSScriptRoot 'check-icons.ps1') -Executable $binary.FullName
     if (-not $NsisCompiler) {
         $compiler = Get-Command makensis.exe -ErrorAction SilentlyContinue
         if ($compiler) { $NsisCompiler = $compiler.Source }
@@ -29,7 +30,7 @@ try {
     $stagingDirectory = Join-Path $outputDirectory $packageName
     if (Test-Path -LiteralPath $stagingDirectory) { throw 'Package directory already exists' }
     New-Item -ItemType Directory -Path $stagingDirectory -Force | Out-Null
-    Copy-Item -LiteralPath $binary.FullName -Destination (Join-Path $stagingDirectory 'daozai.exe')
+    Copy-Item -LiteralPath $binary.FullName -Destination (Join-Path $stagingDirectory '小妲己.exe')
     # ZIP 保留给免安装使用和应用内更新；普通用户只需下载安装 EXE。
     @('LICENSE','THIRD_PARTY_NOTICES.txt') | ForEach-Object {
         Copy-Item -LiteralPath (Join-Path $projectRoot $_) -Destination $stagingDirectory -Recurse
@@ -37,6 +38,7 @@ try {
     $setup = Join-Path $outputDirectory "小妲己-安装包-v$version-x64.exe"
     & $NsisCompiler /V2 /WX "/DAPP_VERSION=$version" "/DPROJECT_DIR=$projectRoot" "/DSOURCE_EXE=$($binary.FullName)" "/DOUTPUT_FILE=$setup" (Join-Path $projectRoot 'installer\setup.nsi')
     if ($LASTEXITCODE -ne 0) { throw 'Installer build failed' }
+    & (Join-Path $PSScriptRoot 'check-icons.ps1') -Executable $setup
     $archive = Join-Path $outputDirectory "$packageName.zip"
     Compress-Archive -LiteralPath $stagingDirectory -DestinationPath $archive
     $checksums = @($setup, $archive) | ForEach-Object {

@@ -17,13 +17,14 @@ try {
     if ($LASTEXITCODE -ne 0) { throw '测试程序编译失败' }
     $installer = Join-Path $testRoot 'apply.ps1'
     [IO.File]::WriteAllText($installer, [IO.File]::ReadAllText((Join-Path $project 'installer\update.ps1')), [Text.UTF8Encoding]::new($true))
-    $targetDir = Join-Path $testRoot 'installed'
+    $targetDir = Join-Path $testRoot 'installed 中文 files'
     New-Item -ItemType Directory -Path $targetDir | Out-Null
-    $target = Join-Path $targetDir 'daozai.exe'
     $data = Join-Path $targetDir 'settings.json'
     Set-Content -LiteralPath $data -Value 'keep-user-data'
+    Add-Type -AssemblyName System.IO.Compression
     Add-Type -AssemblyName System.IO.Compression.FileSystem
-    foreach ($case in @('success','inherited-shell','bad-hash','wrong-version','traversal')) {
+    foreach ($case in @('success','inherited-shell','legacy-package','legacy-target','duplicate-program','bad-hash','wrong-version','traversal')) {
+        $target = Join-Path $targetDir $(if ($case -eq 'legacy-target') {'daozai.exe'} else {'小妲己.exe'})
         Remove-Item -LiteralPath (Join-Path $targetDir 'started.txt') -ErrorAction SilentlyContinue
         Set-Content -LiteralPath $target -Value 'previous-program'
         $before = (Get-FileHash -LiteralPath $target).Hash
@@ -32,8 +33,11 @@ try {
         $archive = Join-Path $work 'update.zip'
         $zip = [IO.Compression.ZipFile]::Open($archive, [IO.Compression.ZipArchiveMode]::Create)
         $version = if ($case -eq 'wrong-version') {'9.8.8'} else {'9.8.7'}
-        $entry = if ($case -eq 'traversal') {'../daozai.exe'} else {"小妲己-v$version-windows-x64/daozai.exe"}
+        $entry = if ($case -eq 'traversal') {'../小妲己.exe'} elseif ($case -eq 'legacy-package') {"小妲己-v$version-windows-x64/daozai.exe"} else {"小妲己-v$version-windows-x64/小妲己.exe"}
         [IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip, $fixture, $entry) | Out-Null
+        if ($case -eq 'duplicate-program') {
+            [IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip, $fixture, "小妲己-v$version-windows-x64/daozai.exe") | Out-Null
+        }
         $zip.Dispose()
         Set-Content -LiteralPath (Join-Path $work 'version.txt') -Value $version
         $hash = if ($case -eq 'bad-hash') {'a' * 64} else {(Get-FileHash -LiteralPath $archive).Hash}
@@ -54,7 +58,7 @@ try {
             & $shell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $installer -WorkPath $work -TargetExe $target -ParentProcessId 0
             $code = $LASTEXITCODE
         }
-        if ($case -in @('success','inherited-shell')) {
+        if ($case -in @('success','inherited-shell','legacy-package','legacy-target')) {
             if ($code -ne 0) { throw "更新安装失败：$case" }
             if ((Get-FileHash -LiteralPath $target).Hash -ne (Get-FileHash -LiteralPath $fixture).Hash) { throw '未替换为新版程序' }
             for ($attempt=0; $attempt -lt 50 -and -not (Test-Path -LiteralPath (Join-Path $targetDir 'started.txt')); $attempt++) { Start-Sleep -Milliseconds 100 }

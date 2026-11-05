@@ -30,8 +30,10 @@ try {
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     $zip = [IO.Compression.ZipFile]::OpenRead($archive)
     try {
-        $name = '小妲己-v' + $version + '-windows-x64/daozai.exe'
-        $entries = @($zip.Entries | Where-Object {$_.FullName.Replace('\','/') -ceq $name})
+        # v0.0.2+ packages use the Chinese filename. Accept the previous format
+        # only if there is a single program across both exact, non-traversing paths.
+        $names = @(("小妲己-v$version-windows-x64/小妲己.exe"), ("小妲己-v$version-windows-x64/daozai.exe"))
+        $entries = @($zip.Entries | Where-Object {$names -ccontains $_.FullName.Replace('\','/')})
         if ($entries.Count -ne 1 -or $entries[0].Length -gt 200MB) { throw '更新包中缺少唯一的小妲己程序。' }
         [IO.Compression.ZipFileExtensions]::ExtractToFile($entries[0], $staged)
     } finally { $zip.Dispose() }

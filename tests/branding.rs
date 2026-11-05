@@ -68,3 +68,23 @@ fn package_lock_and_windows_resources_match_the_compiled_version() {
     assert!(readme.contains(&format!("小妲己-安装包-v{version}-x64.exe")));
     assert!(readme.contains(&format!("小妲己-v{version}-windows-x64.zip")));
 }
+
+#[test]
+fn distributed_executables_and_all_installer_paths_use_chinese_names() {
+    let resources = include_str!("../app.rc");
+    assert!(resources.contains("VALUE \"OriginalFilename\", \"小妲己.exe\""));
+    let installer = include_str!("../installer/setup.nsi");
+    assert!(installer.contains("!define APP_EXE \"小妲己.exe\""));
+    assert!(installer.contains("!define UNINSTALL_EXE \"卸载小妲己.exe\""));
+    assert!(installer.contains("WriteUninstaller \"$INSTDIR\\${UNINSTALL_EXE}\""));
+    assert!(installer.contains("Delete \"$INSTDIR\\daozai.exe\""));
+    assert!(installer.contains("Delete \"$INSTDIR\\Uninstall.exe\""));
+    let package = include_str!("../scripts/package.ps1");
+    assert!(package.contains("Join-Path $stagingDirectory '小妲己.exe'"));
+    assert!(package.contains("check-icons.ps1"));
+    assert!(!package.contains("Join-Path $stagingDirectory 'daozai.exe'"));
+    let updater = include_str!("../installer/update.ps1");
+    assert!(updater.contains("windows-x64/小妲己.exe"));
+    assert!(updater.contains("windows-x64/daozai.exe"));
+    assert!(updater.contains("$entries.Count -ne 1"));
+}

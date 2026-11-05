@@ -38,8 +38,7 @@ fn main() {
     }
     let out = PathBuf::from(env::var("OUT_DIR").unwrap()).join("daozai.res");
     let Some(rc) = find_rc() else {
-        println!("cargo:warning=rc.exe 未找到，跳过图标资源");
-        return;
+        panic!("rc.exe 未找到，Windows 构建必须包含小妲己图标与版本资源，请安装 Windows SDK");
     };
     let status = Command::new(&rc)
         .arg("/nologo")
@@ -48,8 +47,7 @@ fn main() {
         .arg("app.rc")
         .status();
     if !status.map(|s| s.success()).unwrap_or(false) {
-        println!("cargo:warning=rc.exe 编译 app.rc 失败");
-        return;
+        panic!("rc.exe 编译 app.rc 失败，停止构建以免发布无图标或无版本程序");
     }
     println!("cargo:rustc-link-arg={}", out.display());
 }
