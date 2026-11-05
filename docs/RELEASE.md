@@ -1,54 +1,54 @@
-# 小妲己 v0.0.2 推送、发布与下载
+# 小妲己 v0.0.3 推送、发布与下载
 
-v0.0.1 是历史版本，保留原标签和下载附件；本次新建 v0.0.2，不覆盖旧标签。本轮不代为执行 `git commit` 或 `git push`。
+保留 v0.0.1 / v0.0.2 的原标签和附件；本次新建 v0.0.3，不覆盖历史版本。AI 不代为执行 `git commit` 或 `git push`，也未代为在 GitHub 发布。
 
-## 1. 手动提交并推送源码
+## 1. 手动提交并推送本次源码
 
-在 PowerShell 中执行，每步成功后再执行下一步：
+确认本地差异只包含要发布的内容，再由开发者本人逐步执行：
 
 ```powershell
 cd 'D:\桌面灵动岛\岛仔源\XiaoDaJi'
 git remote -v
 git status --short
-git add .
-git commit -m "发布小妲己 v0.0.2：中文程序名与图标完善"
+git diff --check
+git add Cargo.toml Cargo.lock app.rc CHANGELOG.md README.md docs/BRANDING.md docs/USAGE.md docs/RELEASE.md docs/releases/v0.0.3.md
+git commit -m "发布小妲己 v0.0.3：接入独立更新仓库"
 git -c http.sslBackend=schannel -c http.version=HTTP/1.1 push -u origin main
 ```
 
-远程应为 `https://github.com/Oliver-Lee-1027/XiaoDaJi.git`。认证时使用有本仓库写权限的账号。不要强制推送，也不要关闭证书校验。
+远程应为 `https://github.com/Oliver-Lee-1027/XiaoDaJi.git`。使用有仓库写权限的账号，不要强制推送或关闭证书校验。`dist/` 不提交为源码，成品使用 Release 附件上传。
 
-`dist/` 被 Git 忽略，安装包不作为源码提交，使用下一节上传到 Release。
+## 2. 新建 v0.0.3 Release
 
-## 2. 新建 v0.0.2 Release 并添加下载附件
-
-1. 打开 `Oliver-Lee-1027/XiaoDaJi`，确认 `main` 显示本轮新提交。
-2. 进入 **Releases → Draft a new release / Create a new release**，不要编辑 v0.0.1 的标签或附件。
-3. **Choose a tag** 输入 `v0.0.2` 并创建新标签，**Target** 选包含本轮新提交的 `main`。
-4. **Release title** 填 `小妲己 v0.0.2`。
-5. **Describe this release** 可复制 `docs/releases/v0.0.2.md` 的内容。
-6. 从 `dist\v0.0.2` 上传三个文件并等待上传完成：
-   - `小妲己-安装包-v0.0.2-x64.exe`
-   - `小妲己-v0.0.2-windows-x64.zip`
+1. 打开仓库，确认 `main` 已包含本次新提交。
+2. 进入 **Releases → Draft a new release / Create a new release**。
+3. **Choose a tag** 输入 `v0.0.3` 并创建新标签，**Target** 选择包含本次新提交的 `main`。如果该标签已存在，先核对其提交和发布内容，不要覆盖。
+4. **Release title** 填 `小妲己 v0.0.3`。
+5. **Describe this release** 复制 `docs/releases/v0.0.3.md` 的内容。
+6. 从 `dist\v0.0.3` 上传以下三个文件并等待完成：
+   - `小妲己-安装包-v0.0.3-x64.exe`
+   - `小妲己-v0.0.3-windows-x64.zip`
    - `SHA256SUMS.txt`
-7. 不勾选 **Set as a pre-release**；如出现 **Set as the latest release**，勾选它。
-8. 点击 **Publish release**，确认新页标签为 `v0.0.2` 且 Assets 中三个文件齐全。
+7. 不勾选 **Set as a pre-release**，选择 **Set as the latest release**（如显示）。
+8. 点击 **Publish release**，核对标签 `v0.0.3` 和三个附件。
 
-发布页面可直接创建新标签，不必再执行 `git tag` 或另推标签。只推源码不会自动出现安装包下载；GitHub 自动生成的 Source code ZIP/TAR.GZ 也不是 Windows 安装包。
+GitHub 自动生成的 Source code ZIP/TAR.GZ 不是 Windows 安装包。应用内更新严格匹配上面的中文 ZIP 文件名，不要重命名；只上传 EXE 不能提供应用内下载安装。
 
-## 3. 用户下载和更新
+## 3. 本机安装与更新验证
 
-1. 在仓库首页点击 **Releases**，打开 **小妲己 v0.0.2**（标签 `v0.0.2`）。
-2. 展开 **Assets**，下载安装版 `小妲己-安装包-v0.0.2-x64.exe`。便携用户选名称含 `windows-x64.zip` 的附件，不要选 Source code。
-3. 已安装 v0.0.1 的用户：先从托盘退出小妲己，保留原安装位置运行新版安装器直接覆盖，无需先卸载。
-4. 安装后主程序为 `小妲己.exe`，卸载器为 `卸载小妲己.exe`；原设置、凭据和记录保留。文件属性的版本应为 `0.0.2`。
-5. 便携用户完整解压到新的版本目录后运行 `小妲己.exe`，不要与旧版同时运行；默认仍读取同一用户数据目录。
+1. 已安装 v0.0.1 / v0.0.2 的用户先从托盘退出程序，运行新的 EXE 安装包，保留原安装位置覆盖安装；无需先卸载。
+2. 安装后「设置 → 关于」应显示 `0.0.3`，检查更新按钮不再因缺少仓库而禁用。
+3. v0.0.3 与远端 v0.0.3 相同，不会提示有新版本；后续发布 v0.0.4 或更高版本才会提示升级。
+4. GitHub 正式发布前，检查更新可能显示暂未找到正式版本，或当前已是最新版本（远端只有更旧版本时）。网络失败须与版本检查结果区分。
+5. 覆盖升级保留 `%APPDATA%\Daozai` 的用户数据，便携用户完整解压到新的版本目录后运行 `小妲己.exe`，不要同时运行旧版。
 
-在线更新仍未启用，v0.0.1 不会因为 GitHub 新建 Release 自动升级，需手动下载安装包。
+当前旧版没有更新源，无法靠 GitHub 新建 Release 远程补上，必须手动覆盖安装一次。本轮本地打包不等于已验证 GitHub 发布后的真实下载、覆盖更新和重启闭环。
 
-## 4. 重新打包（开发者）
+## 4. 重新打包
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\package.ps1 -OutputDirectory .\dist\v0.0.2
+$env:XIAODAJI_RELEASE_REPOSITORY = 'Oliver-Lee-1027/XiaoDaJi'
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\package.ps1 -OutputDirectory .\dist\v0.0.3
 ```
 
-需要 Rust/MSVC、Windows SDK 和 NSIS。源码构建目标仍为 `daozai.exe`，只在发布包/安装目录中改为中文名。输出目录必须没有同名便携版暂存目录，避免混入旧文件；发布脚本检查版本、运行库依赖及内嵌狐狸图标。
+需要 Rust/MSVC、Windows SDK 和 NSIS（可使用 `-NsisCompiler` 指定 `makensis.exe`）。不要加 `-SkipBuild` 复用未配置更新源的旧程序。该环境变量是编译时配置，必须在每次正式构建前设置。打包目录已有同名暂存目录时，先选新的输出目录，避免覆盖或混入旧产物。

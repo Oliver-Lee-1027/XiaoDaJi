@@ -26,7 +26,7 @@
 
 ## 打包与更新
 
-当前发布版本为 `v0.0.2`；首个独立版本为 `v0.0.1`，已统一 Cargo、Windows 资源与发布包版本。原上游版本记录仅保留作历史参考。当前仓库为 `Oliver-Lee-1027/XiaoDaJi`，本地远程已更新；在线更新仍需显式构建配置，不会因关联 Git 仓库而自动启用。
+当前准备发布的版本为 `v0.0.3`；首个独立版本为 `v0.0.1`，已统一 Cargo、Windows 资源与发布包版本。原上游版本记录仅保留作历史参考。当前仓库为 `Oliver-Lee-1027/XiaoDaJi`，本地远程已更新；v0.0.3 正式发布包在构建时显式配置此仓库为更新源，源码构建不会因关联 Git 仓库而自动启用。
 
 运行 `scripts/package.ps1` 生成（发布前会逐帧核对程序与安装器内嵌图标；卸载器在隔离安装测试中核对）：
 
@@ -34,10 +34,10 @@
 - `小妲己-v版本号-windows-x64.zip`
 - `SHA256SUMS.txt`
 
-在线更新默认关闭，不会连接原作者仓库。新 GitHub 仓库创建后，在**构建前**设置：
+源码构建未配置时，在线更新默认关闭，不会连接原作者仓库。本仓库正式发布包在**构建前**设置：
 
 ```powershell
-$env:XIAODAJI_RELEASE_REPOSITORY = '你的GitHub用户名/XiaoDaJi'
+$env:XIAODAJI_RELEASE_REPOSITORY = 'Oliver-Lee-1027/XiaoDaJi'
 cargo build --locked --release --bin daozai
 ```
 
