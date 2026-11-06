@@ -38,11 +38,13 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+      - name: 验证 Unicode 快捷方式与长短路径
+        shell: pwsh
+        run: ./tests/shortcut_unicode.ps1
       - name: 验证安装、升级与卸载
         shell: pwsh
         run: |
           $compiler = ./scripts/get-nsis.ps1 -Directory $env:RUNNER_TEMP
-          ./tests/shortcut_unicode.ps1
           ./tests/native_installer.ps1 -NsisCompiler $compiler
           ./tests/update_installer.ps1
           exit 0

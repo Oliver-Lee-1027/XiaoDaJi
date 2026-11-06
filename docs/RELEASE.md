@@ -80,3 +80,26 @@ $env:XIAODAJI_RELEASE_REPOSITORY = 'Oliver-Lee-1027/XiaoDaJi'
 - 本地记录不是 GitHub Actions 的运行结果；本次提交的云端检查须在推送后确认。
 
 本轮本地结果：全目标回归 483 通过、0 失败、42 忽略；随后新增附件名兼容逻辑的更新模块回归 11 通过、0 失败、2 忽略；最终品牌/版本回归 5 通过。系统 ACP 936 与英文进程 ACP 1252 的 Unicode 快捷方式回归均通过，旧 WScript 在 ACP 1252 的乱码已复现；隔离安装、升级、卸载及 8 个更新脚本场景通过。成品版本、更新源、ZIP 程序一致性及 SHA-256 已核对。汇总见 `target/v0.0.4-validation-summary.json`（本地生成，不提交）。
+
+## 6. v0.0.4 提交后的 CI 测试误判修复
+
+2026-11-06，提交 v0.0.4 后，云端 Unicode 回归在 `system` 场景报告 `Unicode target path did not round-trip`。这说明此前仅覆盖代码页的本地结果还不足以代表云端通过。
+
+本地已用 8.3 短路径复现相同断言失败：传入 `XIAODA~4` 形式的目录，Shell 返回同一文件的完整长路径，原测试逐字符比较导致误判。现改为：两条路径都必须存在，用 `GetLongPathNameW` 展开，再比较完整 Unicode 路径（忽略 Windows 路径大小写）；错误目标、问号乱码、损坏链接仍须失败。启动参数仍严格比较。
+
+回归增加为系统/英文进程代码页与长/短路径的四种组合；失败时打印代码页、输入路径、预期与实际目标。CI 单独列出 Unicode 步骤，不再把该测试错误混在 NSIS 下载命令下。本机四种组合通过；真实云端结果仍需推送新提交后确认。如果测试卷没有独立 8.3 别名，会明确输出 SKIP，不伪称覆盖短路径。
+
+本次只修改测试、CI 和本说明，未改程序或安装器源码，原 `dist/v0.0.4` 成品不需要重新打包。此前 `eab1151` 对应的失败运行不会因本地修改自动改变。
+
+如果已提交并推送 v0.0.4，由开发者本人执行以下后续提交，不覆盖旧提交或标签：
+
+```powershell
+git status --short
+git diff --check
+git add .github/workflows/ci.yml tests/shortcut_unicode.cs tests/shortcut_unicode.ps1 docs/RELEASE.md
+git diff --cached --stat
+git commit -m "修复 CI 快捷方式长短路径比较误判"
+git -c http.sslBackend=schannel -c http.version=HTTP/1.1 push origin main
+```
+
+随后确认新提交的 `test` 与 `installer` 全部通过，再按第 2 节发布 v0.0.4；不要只重跑旧提交。若仍失败，应保留新增路径诊断，不删除或跳过断言。

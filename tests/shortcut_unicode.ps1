@@ -21,9 +21,11 @@ foreach ($mode in @('system', 'english')) {
     if ($mode -eq 'english') { $options += "/win32manifest:$manifest" }
     & $compiler @options (Join-Path $project 'installer\windows-shortcut.cs') (Join-Path $PSScriptRoot 'shortcut_unicode.cs')
     if ($LASTEXITCODE -ne 0) { throw "Shortcut regression compilation failed: $mode" }
-    $fixtureRoot = Join-Path $root $mode
-    New-Item -ItemType Directory -Path $fixtureRoot | Out-Null
-    & $exe $fixtureRoot
-    if ($LASTEXITCODE -ne 0) { throw "Shortcut Unicode regression failed: $mode" }
+    foreach ($pathStyle in @('long', 'short')) {
+        $fixtureRoot = Join-Path $root ("$mode-$pathStyle")
+        New-Item -ItemType Directory -Path $fixtureRoot | Out-Null
+        & $exe $fixtureRoot $pathStyle
+        if ($LASTEXITCODE -ne 0) { throw "Shortcut Unicode regression failed: $mode/$pathStyle; fixture: $fixtureRoot" }
+    }
 }
 Write-Output "PASS: shortcut regression fixtures: $root"
