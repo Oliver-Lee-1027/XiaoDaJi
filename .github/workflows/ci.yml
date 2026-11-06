@@ -42,6 +42,7 @@ jobs:
         shell: pwsh
         run: |
           $compiler = ./scripts/get-nsis.ps1 -Directory $env:RUNNER_TEMP
+          ./tests/shortcut_unicode.ps1
           ./tests/native_installer.ps1 -NsisCompiler $compiler
           ./tests/update_installer.ps1
           exit 0

@@ -1,8 +1,8 @@
 #pragma code_page(65001)
 1 ICON "assets/xiaodaji.ico"
 1 VERSIONINFO
- FILEVERSION 0,0,3,0
- PRODUCTVERSION 0,0,3,0
+ FILEVERSION 0,0,4,0
+ PRODUCTVERSION 0,0,4,0
  FILEFLAGSMASK 0x3fL
  FILEFLAGS 0x0L
  FILEOS 0x40004L
@@ -17,8 +17,8 @@ BEGIN
             VALUE "InternalName", "XiaoDaJi"
             VALUE "OriginalFilename", "小妲己.exe"
             VALUE "ProductName", "小妲己"
-            VALUE "ProductVersion", "0.0.3"
-            VALUE "FileVersion", "0.0.3"
+            VALUE "ProductVersion", "0.0.4"
+            VALUE "FileVersion", "0.0.4"
         END
     END
     BLOCK "VarFileInfo"

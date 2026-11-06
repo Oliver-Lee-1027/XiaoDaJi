@@ -40,7 +40,11 @@ fn chinese_branding_does_not_change_legacy_install_or_data_identity() {
     assert!(installer.contains("!define APP_ID \"Daozai\""));
     assert!(installer.contains("assets\\xiaodaji.ico"));
     assert!(installer.contains("cleanup-legacy-links.ps1"));
-    assert!(include_str!("../installer/cleanup-legacy-links.ps1").contains("$shell.CreateShortcut($path).TargetPath"));
+    assert!(include_str!("../installer/cleanup-legacy-links.ps1").contains("[XiaoDaJi.WindowsShortcut]::Read($path).TargetPath"));
+    assert!(installer.contains("$PLUGINSDIR\\windows-shortcut.cs"));
+    let shortcuts = include_str!("../installer/windows-shortcut.cs");
+    assert!(shortcuts.contains("000214F9-0000-0000-C000-000000000046"));
+    assert!(shortcuts.contains("((IPersistFile)instance).Load"));
     let package = include_str!("../scripts/package.ps1");
     assert!(package.contains("小妲己-v$version-windows-x64"));
     assert!(package.contains("小妲己-安装包-v$version-x64.exe"));

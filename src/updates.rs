@@ -293,18 +293,19 @@ fn check() -> Result<Option<Release>, String> {
 
 fn release_info(value: &serde_json::Value, current: &str, repository: &str) -> Result<Option<Release>, String> {
     let Some(tag) = parse_release(value, current)? else { return Ok(None); };
-    let name = format!("小妲己-v{}-windows-x64.zip", tag.trim_start_matches('v'));
-    // GitHub percent-encodes Chinese asset filenames in browser_download_url.
-    let expected = url::Url::parse(&format!("{repository}/releases/download/{tag}/{name}"))
-        .map_err(|_| "更新下载地址无效")?.to_string();
-    let package = value["assets"].as_array().and_then(|assets| assets.iter().find(|asset| asset["name"] == name))
-        .and_then(|asset| {
-            let hash = asset["digest"].as_str()?.strip_prefix("sha256:")?;
-            let size = asset["size"].as_u64()?;
-            (asset["browser_download_url"].as_str()? == expected && size > 0 && size <= 200 * 1024 * 1024
-                && hash.len() == 64 && hash.bytes().all(|c| c.is_ascii_hexdigit()))
-                .then(|| Package { url: expected, size, hash: hash.to_ascii_lowercase() })
-        });
+    let number = tag.trim_start_matches('v');
+    // GitHub may strip the Chinese prefix on upload. Accept only these two
+    // exact versioned filenames; keep the same repository, URL and digest checks.
+    let names = [format!("小妲己-v{number}-windows-x64.zip"), format!("-v{number}-windows-x64.zip")];
+    let package = names.iter().find_map(|name| {
+        let expected = url::Url::parse(&format!("{repository}/releases/download/{tag}/{name}")).ok()?.to_string();
+        let asset = value["assets"].as_array()?.iter().find(|asset| asset["name"].as_str() == Some(name.as_str()))?;
+        let hash = asset["digest"].as_str()?.strip_prefix("sha256:")?;
+        let size = asset["size"].as_u64()?;
+        (asset["browser_download_url"].as_str()? == expected && size > 0 && size <= 200 * 1024 * 1024
+            && hash.len() == 64 && hash.bytes().all(|c| c.is_ascii_hexdigit()))
+            .then(|| Package { url: expected, size, hash: hash.to_ascii_lowercase() })
+    });
     Ok(Some(Release { page: format!("{repository}/releases/tag/{tag}"), version: tag,
         notes: value["body"].as_str().unwrap_or("").to_owned(), package }))
 }
@@ -443,6 +444,30 @@ mod tests {
             ("digest", serde_json::Value::Null), ("digest", serde_json::json!("sha256:bad")), ("size", serde_json::json!(0))] {
             let mut invalid = value.clone(); invalid["assets"][0][field] = bad;
             assert!(release_info(&invalid, "0.6.39", REPOSITORY).unwrap().unwrap().package.is_none());
+        }
+    }
+    #[test]
+    fn github_sanitized_asset_name_keeps_repository_version_size_and_hash_checks() {
+        let mut value = release("v0.0.4");
+        let name = "-v0.0.4-windows-x64.zip";
+        let download = format!("{REPOSITORY}/releases/download/v0.0.4/{name}");
+        value["assets"] = serde_json::json!([{"name":name,"browser_download_url":download,
+            "size":123,"digest":format!("sha256:{}", "a".repeat(64))}]);
+        let parsed = release_info(&value, "0.0.3", REPOSITORY).unwrap().unwrap();
+        assert_eq!(parsed.package.unwrap().url, download);
+        for (field, bad) in [
+            ("name", serde_json::json!("-v0.0.5-windows-x64.zip")),
+            ("name", serde_json::json!("source.zip")),
+            ("browser_download_url", serde_json::json!("https://example.com/-v0.0.4-windows-x64.zip")),
+            ("browser_download_url", serde_json::json!(format!("{REPOSITORY}/releases/download/v0.0.5/{name}"))),
+            ("browser_download_url", serde_json::json!(format!("{REPOSITORY}/releases/download/v0.0.4/other.zip"))),
+            ("digest", serde_json::Value::Null),
+            ("digest", serde_json::json!(format!("sha256:{}", "z".repeat(64)))),
+            ("size", serde_json::json!(0)),
+            ("size", serde_json::json!(200 * 1024 * 1024 + 1)),
+        ] {
+            let mut invalid = value.clone(); invalid["assets"][0][field] = bad;
+            assert!(release_info(&invalid, "0.0.3", REPOSITORY).unwrap().unwrap().package.is_none());
         }
     }
     #[test]

@@ -1,6 +1,7 @@
 ﻿param([Parameter(Mandatory=$true)][string]$NsisCompiler)
 $ErrorActionPreference = 'Stop'
 $project = Split-Path $PSScriptRoot -Parent
+if (-not ('XiaoDaJi.WindowsShortcut' -as [type])) { Add-Type -Path (Join-Path $project 'installer\windows-shortcut.cs') }
 $id = 'DaozaiSetupTest' + [Guid]::NewGuid().ToString('N')
 $name = '小妲己安装测试-' + $id.Substring(15,8)
 $legacyName = '旧品牌测试-' + $id.Substring(15,8)
@@ -41,13 +42,14 @@ function Assert-Installed {
     if ($Desktop) { $paths += $desktopLink }
     foreach ($path in $paths) {
         if (-not (Test-Path -LiteralPath $path)) { throw "快捷方式不存在：$path" }
-        # WScript 在英文系统上读取中文快捷方式文件名时可能返回空目标；复制原始文件后检查同一份内容。
-        $probe = Join-Path $root 'shortcut-probe.lnk'
-        Copy-Item -LiteralPath $path -Destination $probe -Force
-        $shortcut = $shell.CreateShortcut($probe)
+        # Read the original link via IShellLinkW; WScript can replace Chinese with '?'.
+        $shortcut = [XiaoDaJi.WindowsShortcut]::Read($path)
         $actual = $shortcut.TargetPath
         $expected = Join-Path $installed '小妲己.exe'
         if (-not (Test-Path -LiteralPath $actual) -or (Get-Item -LiteralPath $actual).FullName -ne (Get-Item -LiteralPath $expected).FullName) { throw "快捷方式目标不正确：$actual；预期：$expected" }
+        $arguments = if ([IO.Path]::GetFileName($path) -eq "${name}设置.lnk") { '--settings' } else { '' }
+        if ($shortcut.Arguments -ne $arguments) { throw "快捷方式启动参数不正确：$path" }
+        if ($shortcut.WorkingDirectory -ne $installed) { throw "快捷方式工作目录不正确：$path" }
     }
     foreach ($legacyFile in @('daozai.exe','Uninstall.exe')) {
         if (Test-Path -LiteralPath (Join-Path $installed $legacyFile)) { throw "旧文件未清理：$legacyFile" }
@@ -72,9 +74,9 @@ try {
     $legacyMenu = Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs\$legacyName.lnk"
     $legacySettings = Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs\${legacyName}设置.lnk"
     foreach ($path in @($legacyDesktop, $legacyMenu)) {
-        $link = $shell.CreateShortcut($path); $link.TargetPath = Join-Path $installed '小妲己.exe'; $link.Save()
+        [XiaoDaJi.WindowsShortcut]::Write($path, (Join-Path $installed '小妲己.exe'), '')
     }
-    $foreign = $shell.CreateShortcut($legacySettings); $foreign.TargetPath = $fixture; $foreign.Save()
+    [XiaoDaJi.WindowsShortcut]::Write($legacySettings, $fixture, '')
     $currentDesktop = Join-Path $shell.SpecialFolders.Item('Desktop') "$name.lnk"
     Remove-Item -LiteralPath $currentDesktop
     Run-Setup -UseRegisteredPath
@@ -88,7 +90,7 @@ try {
     Copy-Item -LiteralPath (Join-Path $installed '卸载小妲己.exe') -Destination (Join-Path $installed 'Uninstall.exe')
     Remove-Item -LiteralPath (Join-Path $installed '小妲己.exe'), (Join-Path $installed '卸载小妲己.exe')
     foreach ($path in @($currentDesktop, (Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs\$name.lnk"), (Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs\${name}设置.lnk"))) {
-        $link=$shell.CreateShortcut($path); $link.TargetPath=Join-Path $installed 'daozai.exe'; $link.Save()
+        [XiaoDaJi.WindowsShortcut]::Write($path, (Join-Path $installed 'daozai.exe'), '')
     }
     New-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name $id -Value ('"'+(Join-Path $installed 'daozai.exe')+'"') -PropertyType String -Force | Out-Null
     Set-ItemProperty -LiteralPath $key -Name UninstallString -Value ('"'+(Join-Path $installed 'Uninstall.exe')+'"')

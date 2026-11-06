@@ -206,6 +206,7 @@ FunctionEnd
   !if "${LEGACY_APP_NAME}" != ""
     InitPluginsDir
     File /oname=$PLUGINSDIR\cleanup-legacy-links.ps1 "${PROJECT_DIR}\installer\cleanup-legacy-links.ps1"
+    File /oname=$PLUGINSDIR\windows-shortcut.cs "${PROJECT_DIR}\installer\windows-shortcut.cs"
     nsExec::ExecToStack /TIMEOUT=15000 '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$PLUGINSDIR\cleanup-legacy-links.ps1" -InstallDirectory "$INSTDIR" -LegacyName "${LEGACY_APP_NAME}" -DesktopDirectory "$DESKTOP" -ProgramsDirectory "$SMPROGRAMS"'
     Pop $0
     Pop $1
