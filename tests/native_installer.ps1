@@ -1,4 +1,8 @@
-﻿param([Parameter(Mandatory=$true)][string]$NsisCompiler)
+﻿param(
+    [Parameter(Mandatory=$true)][string]$NsisCompiler,
+    # Regression-only: fail midway through the legacy migration, before reinstall.
+    [switch]$SimulateMissingUninstaller
+)
 $ErrorActionPreference = 'Stop'
 $project = Split-Path $PSScriptRoot -Parent
 if (-not ('XiaoDaJi.WindowsShortcut' -as [type])) { Add-Type -Path (Join-Path $project 'installer\windows-shortcut.cs') }
@@ -21,12 +25,24 @@ $setup = Join-Path $root 'Daozai-TestInstaller.exe'
 if ($LASTEXITCODE -ne 0) { throw '测试安装器编译失败' }
 New-Item -ItemType Directory -Path $data -Force | Out-Null
 Set-Content -LiteralPath $sentinel -Value 'keep-user-data'
+function Wait-TestProcess {
+    param([Diagnostics.Process]$Process, [string]$Operation)
+    try {
+        if (-not $Process.WaitForExit(30000)) {
+            # Stop only the exact process started by this test; never a named user app.
+            $Process.Kill()
+            $null = $Process.WaitForExit(5000)
+            throw "$Operation 超时（30 秒）；已停止本测试进程，PID=$($Process.Id)"
+        }
+        if ($Process.ExitCode -ne 0) { throw "$Operation 失败，退出码=$($Process.ExitCode)" }
+    } finally { $Process.Dispose() }
+}
 function Run-Setup {
     param([string[]]$Options = @(), [switch]$UseRegisteredPath)
     $arguments = @('/S') + $Options
     if (-not $UseRegisteredPath) { $arguments += "/D=$installed" }
     $process = Start-Process -FilePath $setup -ArgumentList $arguments -WindowStyle Hidden -PassThru
-    if (-not $process.WaitForExit(30000) -or $process.ExitCode -ne 0) { throw '安装失败或超时' }
+    Wait-TestProcess -Process $process -Operation ('安装 ' + ($arguments -join ' '))
 }
 function Assert-Installed {
     param([bool]$Desktop = $true, [bool]$AutoStart = $false)
@@ -61,7 +77,9 @@ function Assert-Installed {
     } elseif ($run) { throw '未勾选自启却设置了开机启动' }
     if ((Get-Content -LiteralPath $sentinel -Raw).Trim() -ne 'keep-user-data') { throw '用户数据被修改' }
 }
+$primaryFailure = $null
 try {
+    Write-Output '开始：首次安装'
     Run-Setup
     Assert-Installed
     & (Join-Path $project 'scripts\check-icons.ps1') -Executable (Join-Path $installed '小妲己.exe')
@@ -89,11 +107,16 @@ try {
     Copy-Item -LiteralPath (Join-Path $installed '小妲己.exe') -Destination (Join-Path $installed 'daozai.exe')
     Copy-Item -LiteralPath (Join-Path $installed '卸载小妲己.exe') -Destination (Join-Path $installed 'Uninstall.exe')
     Remove-Item -LiteralPath (Join-Path $installed '小妲己.exe'), (Join-Path $installed '卸载小妲己.exe')
+    if ($SimulateMissingUninstaller) {
+        Remove-Item -LiteralPath (Join-Path $installed 'Uninstall.exe')
+        throw "INJECTED_MISSING_UNINSTALLER: $id"
+    }
     foreach ($path in @($currentDesktop, (Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs\$name.lnk"), (Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs\${name}设置.lnk"))) {
         [XiaoDaJi.WindowsShortcut]::Write($path, (Join-Path $installed 'daozai.exe'), '')
     }
     New-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name $id -Value ('"'+(Join-Path $installed 'daozai.exe')+'"') -PropertyType String -Force | Out-Null
     Set-ItemProperty -LiteralPath $key -Name UninstallString -Value ('"'+(Join-Path $installed 'Uninstall.exe')+'"')
+    Write-Output '开始：v0.0.1 旧文件名覆盖迁移'
     Run-Setup -UseRegisteredPath
     Assert-Installed -AutoStart $true
     Write-Output '通过：v0.0.1旧文件名覆盖迁移、保留自启选择并修正路径、无旧程序残留'
@@ -125,27 +148,68 @@ try {
     Set-Content -LiteralPath (Join-Path $installed 'user-file.txt') -Value 'keep-extra-file'
     # 使用原安装路径运行原生卸载器，只操作本测试的独立产品标识。
     $process = Start-Process -FilePath (Join-Path $installed '卸载小妲己.exe') -ArgumentList @('/S',"_?=$installed") -WindowStyle Hidden -PassThru
-    if (-not $process.WaitForExit(30000) -or $process.ExitCode -ne 0) { throw '卸载失败或超时' }
+    Wait-TestProcess -Process $process -Operation '原生卸载'
     if ((Test-Path -LiteralPath $key) -or (Test-Path -LiteralPath (Join-Path $installed '小妲己.exe'))) { throw '卸载残留程序或注册信息' }
     if ((Get-ItemProperty -LiteralPath 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -ErrorAction SilentlyContinue).$id) { throw '卸载残留自启项' }
     if (-not (Test-Path -LiteralPath (Join-Path $installed 'user-file.txt'))) { throw '卸载误删额外文件' }
     if ((Get-Content -LiteralPath $sentinel -Raw).Trim() -ne 'keep-user-data') { throw '卸载误删用户数据' }
     Write-Output '通过：原生卸载、保留用户数据和额外文件'
+} catch {
+    $primaryFailure = $_
+    # A finally error must never replace the failure that brought us here.
+    Write-Warning ("安装回归原始失败：" + $_.Exception.Message + "`n" + $_.ScriptStackTrace)
+    throw
 } finally {
-    # Remove only explicitly named test links in case a preceding assertion fails.
-    foreach ($path in @($legacyDesktop, $legacyMenu, $legacySettings)) {
-        if ($path -and (Test-Path -LiteralPath $path)) { Remove-Item -LiteralPath $path }
-    }
-    # 清理本测试的独立安装，避免失败时残留桌面快捷方式和自启项。
-    if (Test-Path -LiteralPath $key) {
-        $cleanupDirectory = (Get-ItemProperty -LiteralPath $key).InstallLocation
-        $defaultDirectory = Join-Path $env:LOCALAPPDATA "Programs\$id"
-        if ($cleanupDirectory -ne $installed -and $cleanupDirectory -ne $defaultDirectory) { throw '测试清理目录超出预期范围' }
-        $cleanup = Start-Process -FilePath (Join-Path $cleanupDirectory '卸载小妲己.exe') -ArgumentList @('/S',"_?=$cleanupDirectory") -WindowStyle Hidden -PassThru
-        $null = $cleanup.WaitForExit(30000)
-    }
-    if (-not (Test-Path -LiteralPath $key)) {
-        Remove-Item -LiteralPath $sentinel
-        Remove-Item -LiteralPath $data
+    try {
+        # Remove only explicitly named test links, even after a partial migration.
+        $shell = New-Object -ComObject WScript.Shell
+        $desktop = $shell.SpecialFolders.Item('Desktop')
+        $programs = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs'
+        foreach ($linkName in @($name, $legacyName)) {
+            foreach ($path in @((Join-Path $desktop "$linkName.lnk"), (Join-Path $programs "$linkName.lnk"), (Join-Path $programs "${linkName}设置.lnk"))) {
+                if (Test-Path -LiteralPath $path) { Remove-Item -LiteralPath $path }
+            }
+        }
+        if (Test-Path -LiteralPath $key) {
+            $cleanupDirectory = (Get-ItemProperty -LiteralPath $key).InstallLocation
+            $defaultDirectory = Join-Path $env:LOCALAPPDATA "Programs\$id"
+            if (-not $cleanupDirectory) { throw '测试清理缺少安装目录' }
+            $cleanupDirectory = [IO.Path]::GetFullPath($cleanupDirectory)
+            if ($cleanupDirectory -ne [IO.Path]::GetFullPath($installed) -and $cleanupDirectory -ne [IO.Path]::GetFullPath($defaultDirectory)) {
+                throw '测试清理目录超出预期范围'
+            }
+            # During legacy migration the current filename can be absent by design.
+            $uninstaller = @('卸载小妲己.exe', 'Uninstall.exe') | ForEach-Object { Join-Path $cleanupDirectory $_ } | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1
+            if ($uninstaller) {
+                $cleanup = Start-Process -FilePath $uninstaller -ArgumentList @('/S',"_?=$cleanupDirectory") -WindowStyle Hidden -PassThru
+                Wait-TestProcess -Process $cleanup -Operation '测试清理卸载'
+            } elseif (-not $primaryFailure) {
+                throw "测试卸载器不存在：$cleanupDirectory"
+            } else {
+                Write-Warning "TEST_CLEANUP_MISSING_UNINSTALLER: $cleanupDirectory；保留文件供诊断，仅清理本测试的注册项。"
+            }
+            if (Test-Path -LiteralPath $key) {
+                if (-not $primaryFailure) { throw '测试清理后仍有卸载注册项' }
+                # Only this randomly named test product, never Daozai's real entry.
+                $expectedKey = 'HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Uninstall\' + $id
+                if ($id -notmatch '^DaozaiSetupTest[0-9a-f]{32}$' -or (Get-Item -LiteralPath $key).Name -ne $expectedKey) {
+                    throw '测试注册项超出清理范围'
+                }
+                if (@(Get-ChildItem -LiteralPath $key).Count) { throw '测试注册项有意外子项，拒绝递归清理' }
+                Remove-Item -LiteralPath $key
+                $runKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
+                if ((Get-ItemProperty -LiteralPath $runKey -ErrorAction SilentlyContinue).$id) {
+                    Remove-ItemProperty -LiteralPath $runKey -Name $id
+                }
+            }
+        }
+        if (-not (Test-Path -LiteralPath $key)) {
+            if (Test-Path -LiteralPath $sentinel) { Remove-Item -LiteralPath $sentinel }
+            if (Test-Path -LiteralPath $data) { Remove-Item -LiteralPath $data }
+        }
+    } catch {
+        if ($primaryFailure) {
+            Write-Warning ("TEST_CLEANUP_SECONDARY_FAILURE: 测试清理附加失败（不覆盖原始异常）：" + $_.Exception.Message)
+        } else { throw }
     }
 }

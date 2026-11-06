@@ -24,7 +24,7 @@ jobs:
       - name: 检查安装脚本语法
         shell: pwsh
         run: |
-          Get-ChildItem installer,scripts -Filter *.ps1 -Recurse | ForEach-Object {
+          Get-ChildItem installer,scripts,tests -Filter *.ps1 -Recurse | ForEach-Object {
             $parseErrors = $null
             [System.Management.Automation.Language.Parser]::ParseFile($_.FullName,[ref]$null,[ref]$parseErrors) | Out-Null
             if ($parseErrors) { throw ($parseErrors | Out-String) }
@@ -46,5 +46,6 @@ jobs:
         run: |
           $compiler = ./scripts/get-nsis.ps1 -Directory $env:RUNNER_TEMP
           ./tests/native_installer.ps1 -NsisCompiler $compiler
+          ./tests/native_installer_failure.ps1 -NsisCompiler $compiler
           ./tests/update_installer.ps1
           exit 0
