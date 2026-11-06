@@ -5,6 +5,7 @@
 )
 $ErrorActionPreference = 'Stop'
 $project = Split-Path $PSScriptRoot -Parent
+. (Join-Path $PSScriptRoot 'installer_test_registry.ps1')
 if (-not ('XiaoDaJi.WindowsShortcut' -as [type])) { Add-Type -Path (Join-Path $project 'installer\windows-shortcut.cs') }
 $id = 'DaozaiSetupTest' + [Guid]::NewGuid().ToString('N')
 $name = '小妲己安装测试-' + $id.Substring(15,8)
@@ -114,7 +115,7 @@ try {
     foreach ($path in @($currentDesktop, (Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs\$name.lnk"), (Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs\${name}设置.lnk"))) {
         [XiaoDaJi.WindowsShortcut]::Write($path, (Join-Path $installed 'daozai.exe'), '')
     }
-    New-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name $id -Value ('"'+(Join-Path $installed 'daozai.exe')+'"') -PropertyType String -Force | Out-Null
+    Set-InstallerTestAutoStart -RegistryPath 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -AppId $id -Executable (Join-Path $installed 'daozai.exe')
     Set-ItemProperty -LiteralPath $key -Name UninstallString -Value ('"'+(Join-Path $installed 'Uninstall.exe')+'"')
     Write-Output '开始：v0.0.1 旧文件名覆盖迁移'
     Run-Setup -UseRegisteredPath

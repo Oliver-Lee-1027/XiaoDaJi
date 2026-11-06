@@ -2,6 +2,27 @@
 param([Parameter(Mandatory=$true)][string]$NsisCompiler)
 $ErrorActionPreference = 'Stop'
 $project = Split-Path $PSScriptRoot -Parent
+. (Join-Path $PSScriptRoot 'installer_test_registry.ps1')
+# Reproduce a fresh profile without deleting/touching the user's real Run key.
+$registryId = 'DaozaiSetupTest' + [Guid]::NewGuid().ToString('N')
+$registryRoot = 'HKCU:\Software\' + $registryId
+$registryRun = Join-Path $registryRoot 'Run'
+if (Test-Path -LiteralPath $registryRoot) { throw '隔离注册表测试目录意外存在，拒绝覆盖' }
+try {
+    $first = 'C:\installer test 中文\legacy.exe'
+    Set-InstallerTestAutoStart -RegistryPath $registryRun -AppId $registryId -Executable $first
+    if ((Get-ItemProperty -LiteralPath $registryRun).$registryId -ne ('"' + $first + '"')) { throw '缺失 Run 键时未创建自启值' }
+    New-ItemProperty -LiteralPath $registryRun -Name 'UnrelatedEntry' -Value 'keep-existing-value' -PropertyType String | Out-Null
+    $second = 'C:\installer test 中文\小妲己.exe'
+    Set-InstallerTestAutoStart -RegistryPath $registryRun -AppId $registryId -Executable $second
+    $values = Get-ItemProperty -LiteralPath $registryRun
+    if ($values.$registryId -ne ('"' + $second + '"') -or $values.UnrelatedEntry -ne 'keep-existing-value') { throw '已有 Run 键时未更新目标值或误改其他值' }
+    Write-Output '通过：隔离注册表 Run 键缺失时自动创建，已有键更新时保留其他自启项'
+} finally {
+    # Explicit unique leaf keys only; never recursively remove a registry tree.
+    if (Test-Path -LiteralPath $registryRun) { Remove-Item -LiteralPath $registryRun }
+    if (Test-Path -LiteralPath $registryRoot) { Remove-Item -LiteralPath $registryRoot }
+}
 $root = Join-Path $project ('target\installer-failure-' + [Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $root | Out-Null
 $stdout = Join-Path $root 'stdout.log'
